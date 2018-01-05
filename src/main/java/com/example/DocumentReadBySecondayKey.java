@@ -29,7 +29,7 @@ public class DocumentReadBySecondayKey implements Runnable {
         DocumentClient client = this.client;
 
         if(Configuration.READ_USE_NEW_CLIENTS_IN_TASK) {
-            client = Program.createReadOnlyClient(ConnectionMode.DirectHttps);
+            client = Program.createReadOnlyClient();
         }
 
         double ruConsumed = 0;

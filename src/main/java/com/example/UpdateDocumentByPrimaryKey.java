@@ -21,7 +21,7 @@ public class UpdateDocumentByPrimaryKey {
         int idx = new Random().nextInt(personCache.size());
         Person person = personCache.get(idx);
 
-        DocumentClient client = Program.createWriteClient(ConnectionMode.DirectHttps);
+        DocumentClient client = Program.createWriteClient();
 
         FeedOptions options = new FeedOptions();
         options.setPartitionKey(new PartitionKey(person.getGender()));

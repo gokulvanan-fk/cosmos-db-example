@@ -1,6 +1,7 @@
 package com.example;
 
 import com.microsoft.azure.documentdb.*;
+import com.microsoft.azure.documentdb.rx.AsyncDocumentClient;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.log4j.Level;
@@ -16,7 +17,11 @@ import java.util.concurrent.*;
 @Slf4j
 public class Program {
 
-    public static DocumentClient createWriteClient(@NonNull ConnectionMode connectionMode) {
+    public static DocumentClient createWriteClient() {
+        ConnectionMode connectionMode = ConnectionMode.DirectHttps;
+        if(Configuration.USE_GATEWAY_MODE) {
+            connectionMode = ConnectionMode.Gateway;
+        }
         ConnectionPolicy policy = new ConnectionPolicy();
         policy.setConnectionMode(connectionMode);
         policy.setPreferredLocations(Configuration.PREFERRED_WRITE_REGION);
@@ -24,7 +29,11 @@ public class Program {
         return createClient(Configuration.MASTER_KEY, policy);
     }
 
-    public static DocumentClient createReadOnlyClient(@NonNull ConnectionMode connectionMode) {
+    public static DocumentClient createReadOnlyClient() {
+        ConnectionMode connectionMode = ConnectionMode.DirectHttps;
+        if(Configuration.USE_GATEWAY_MODE) {
+            connectionMode = ConnectionMode.Gateway;
+        }
         ConnectionPolicy policy = new ConnectionPolicy();
         policy.setConnectionMode(connectionMode);
         policy.setPreferredLocations(Configuration.PREFERRED_READ_REGION);
@@ -33,7 +42,30 @@ public class Program {
     }
 
     public static DocumentClient createClient(String key, ConnectionPolicy policy) {
-        return new DocumentClient(Configuration.SERVICE_URI, key, policy, null);
+        return new DocumentClient(Configuration.SERVICE_URI, key, policy, ConsistencyLevel.Strong);
+    }
+
+    public static AsyncDocumentClient createReadOnlyClientAsync() {
+        ConnectionMode connectionMode = ConnectionMode.DirectHttps;
+        if(Configuration.USE_GATEWAY_MODE) {
+            connectionMode = ConnectionMode.Gateway;
+        }
+        ConnectionPolicy policy = new ConnectionPolicy();
+        policy.setConnectionMode(connectionMode);
+        policy.setPreferredLocations(Configuration.PREFERRED_READ_REGION);
+
+        return createAsyncClient(Configuration.READONLY_KEY, policy);
+    }
+
+
+    public static AsyncDocumentClient createAsyncClient(String key, ConnectionPolicy policy) {
+        AsyncDocumentClient asyncClient = new AsyncDocumentClient.Builder()
+                .withServiceEndpoint(Configuration.SERVICE_URI)
+                .withMasterKey(Configuration.MASTER_KEY)
+                .withConnectionPolicy(policy)
+                .withConsistencyLevel(ConsistencyLevel.Session)
+                .build();
+        return asyncClient;
     }
 
     public static Database createDatabaseIfNotExists(@NonNull DocumentClient documentClient) {
@@ -157,7 +189,7 @@ public class Program {
         }
     }
 
-    public static ObjectCache<Person> runInsertBenchmark(DocumentClient client, boolean drillDownOnSummary) {
+    public static ObjectCache<Document> runInsertBenchmark(DocumentClient client, boolean drillDownOnSummary) {
         log.info("Initializing Insertion benchmarks");
 
 
@@ -180,7 +212,7 @@ public class Program {
         for(int i = 0; i < statistics.length; i++)
             statistics[i] = new Statistics();
 
-        ObjectCache<Person> personObjectCache = new ObjectCache<>();
+        ObjectCache<Document> personObjectCache = new ObjectCache<>();
 
         for (int i = 0; i < Configuration.WRITE_TASKS_IN_PARALLEL; i++) {
             writeExecutors.submit(new DocumentInsertWorker(client, documentCollection, i,
@@ -213,7 +245,7 @@ public class Program {
         return personObjectCache;
     }
 
-    public static void runQueryByPrimaryKey(DocumentClient client, ArrayList<Person> personCache, boolean drillDownOnSummary) {
+    public static void runQueryByPrimaryKey(DocumentClient client, ArrayList<Document> personCache, boolean drillDownOnSummary) {
         log.info("Initializing QueryByPrimaryKey benchmarks");
 
         Database database = createDatabaseIfNotExists(client);
@@ -230,6 +262,7 @@ public class Program {
                         return th;
                     }
                 });
+
 
         Statistics[] statistics = new Statistics[Configuration.READ_TASKS_IN_PARALLEL];
         for(int i = 0; i < statistics.length; i++)
@@ -342,7 +375,7 @@ public class Program {
         feedExecutors.submit(new ChangeFeedObserver(client, "", documentCollection, docs));
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         // do a dirty setup for the logger
         org.apache.log4j.BasicConfigurator.configure();
         org.apache.log4j.LogManager.getRootLogger().setLevel(Level.INFO);
@@ -357,7 +390,7 @@ public class Program {
             }
         });
         */
-        DocumentClient client = createWriteClient(ConnectionMode.DirectHttps);
+        DocumentClient client = createWriteClient();
 
 
         if(Configuration.DO_CLEANUP) //start with a clean slate
@@ -368,14 +401,20 @@ public class Program {
 
         //runChangeFeedObserver(client, feedExecutors);
 
-        ObjectCache<Person> insertedDocs = Program.runInsertBenchmark(client, false);
-        ArrayList<Person> personArrayList = new ArrayList<>();
-        for(Person p : insertedDocs.getCache())
+        ObjectCache<Document> insertedDocs = Program.runInsertBenchmark(client, false);
+        ArrayList<Document> personArrayList = new ArrayList<>();
+        for(Document p : insertedDocs.getCache())
             personArrayList.add(p);
 
+        System.gc ();
+        System.runFinalization ();
+
         Program.runQueryByPrimaryKey(client, personArrayList, true);
-        Program.runQueryBySecondayKey(client, personArrayList, true);
-        Program.runUpdate(client, personArrayList);
+
+        //Thread.sleep(6000);
+
+        //Program.runQueryBySecondayKey(client, personArrayList, true);
+        //Program.runUpdate(client, personArrayList);
 
         /*try {
             feedExecutors.awaitTermination(1, TimeUnit.HOURS);

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.jamonapi.Monitor;
 import com.jamonapi.MonitorFactory;
 import com.microsoft.azure.documentdb.*;
+import jdk.nashorn.internal.runtime.RecompilableScriptFunctionData;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.util.Asserts;
@@ -26,7 +27,7 @@ public class DocumentInsertWorker implements Runnable {
     private Integer taskId;
     private Integer countOfDocs;
     private Statistics stats;
-    private ObjectCache<Person> personObjectCache;
+    private ObjectCache<Document> personObjectCache;
 
     private static Gson gson = new Gson();
 
@@ -37,7 +38,7 @@ public class DocumentInsertWorker implements Runnable {
         DocumentClient client = this.client;
 
         if(Configuration.WRITE_USE_NEW_CLIENTS_IN_TASK) {
-            client = Program.createWriteClient(ConnectionMode.DirectHttps);
+            client = Program.createWriteClient();
         }
 
         double ruConsumed = 0;
@@ -46,8 +47,6 @@ public class DocumentInsertWorker implements Runnable {
         for (int i = 0; i < countOfDocs; i++) {
             Person person = PersonFactory.doCreate();
             String personJson = gson.toJson(person);
-
-            personObjectCache.getCache().add(person);
 
             try {
                 Document doc = new Document(personJson);
@@ -59,6 +58,8 @@ public class DocumentInsertWorker implements Runnable {
 
                 long tock = System.currentTimeMillis();
                 stats.getElapsedTimeInMs().add((double) tock-tic);
+
+                personObjectCache.getCache().add(createDocResponse.getResource());
 
                 int currPercentage = (i * 100)/countOfDocs;
                 if (currPercentage  % 10 == 0 && currPercentage > percentage) {

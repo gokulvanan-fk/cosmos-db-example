@@ -16,7 +16,7 @@ public class DocumentReadByPrimaryKey implements Runnable {
     private Integer taskId;
     private Integer countOfDocs;
     private Statistics stats;
-    private ArrayList<Person> personCache;
+    private ArrayList<Document> personCache;
 
     public void run() {
         Asserts.check(client!=null && documentCollection!=null,
@@ -25,7 +25,7 @@ public class DocumentReadByPrimaryKey implements Runnable {
         DocumentClient client = this.client;
 
         if(Configuration.READ_USE_NEW_CLIENTS_IN_TASK) {
-            client = Program.createReadOnlyClient(ConnectionMode.DirectHttps);
+            client = Program.createReadOnlyClient();
         }
 
         double ruConsumed = 0;
@@ -35,26 +35,27 @@ public class DocumentReadByPrimaryKey implements Runnable {
 
             try {
                 int idx = new Random().nextInt(personCache.size());
-                Person person = personCache.get(idx);
+                Document person = personCache.get(idx);
 
                 long tic = System.currentTimeMillis();
 
-                FeedOptions options = new FeedOptions();
-                options.setPartitionKey(new PartitionKey(person.getGender()));
-
-                FeedResponse<Document> queryDocResponse = client.queryDocuments(documentCollection.getSelfLink(),
-                        String.format("SELECT * FROM c WHERE c.id='%s'", person.getId(), person.getGender()),
-                        options);
+                RequestOptions options = new RequestOptions();
+                options.setPartitionKey(new PartitionKey(person.get("gender")));
+                ResourceResponse<Document> document = client.readDocument(person.getSelfLink(), options);
 
                 long tock = System.currentTimeMillis();
                 stats.getElapsedTimeInMs().add((double) tock-tic);
+
+                if((double) tock-tic > Configuration.THREASHOLD_LATENCY) {
+                    log.info("Slow query with activity ID: {}" , document.getActivityId());
+                }
 
                 int currPercentage = (i * 100)/countOfDocs;
                 if (currPercentage  % 10 == 0 && currPercentage > percentage) {
                     log.info("{}% query completed", currPercentage);
                     percentage = currPercentage;
                 }
-                ruConsumed += queryDocResponse.getRequestCharge();
+                ruConsumed += document.getRequestCharge();
             } catch (Exception dce) {
                 log.error("[{}]Failed to query document ", taskId, dce);
                 throw new RuntimeException("Failed to query document ");
