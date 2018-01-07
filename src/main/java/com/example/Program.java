@@ -157,16 +157,16 @@ public class Program {
         }
     }
 
-    public static ObjectCache<Person> runInsertBenchmark(DocumentClient client, boolean drillDownOnSummary) {
+    public static ObjectCache<Person> runInsertBenchmark(DocumentClient client,Config config, boolean drillDownOnSummary) {
         log.info("Initializing Insertion benchmarks");
 
-
+//
         Database database = createDatabaseIfNotExists(client);
         log.info("Initializing database with rid {}", database.getSelfLink());
         DocumentCollection documentCollection = createPartitionedCollectionIfNotExists(client, database);
         log.info("Initializing collection with rid {}", documentCollection.getSelfLink());
 
-        ExecutorService writeExecutors = Executors.newFixedThreadPool(Configuration.WRITE_TASKS_IN_PARALLEL,
+        ExecutorService writeExecutors = Executors.newFixedThreadPool(config.getWriteConcc(),
                 new ThreadFactory() {
                     int i=0;
                     public Thread newThread(Runnable r) {
@@ -176,15 +176,15 @@ public class Program {
                     }
                 });
 
-        Statistics[] statistics = new Statistics[Configuration.WRITE_TASKS_IN_PARALLEL];
+        Statistics[] statistics = new Statistics[config.getWriteConcc()];
         for(int i = 0; i < statistics.length; i++)
             statistics[i] = new Statistics();
 
         ObjectCache<Person> personObjectCache = new ObjectCache<>();
 
-        for (int i = 0; i < Configuration.WRITE_TASKS_IN_PARALLEL; i++) {
+        for (int i = 0; i < config.getWriteConcc(); i++) {
             writeExecutors.submit(new DocumentInsertWorker(client, documentCollection, i,
-                    Configuration.WRITE_INSERTS_PER_TASK, statistics[i], personObjectCache));
+                    config.getWriteRequestSize(), statistics[i], personObjectCache));
         }
 
         writeExecutors.shutdown();
@@ -197,13 +197,13 @@ public class Program {
 
         Statistics summaryStats = new Statistics();
         summaryStats.setDELIMITER("\n");
-        for (int i = 0; i < Configuration.WRITE_TASKS_IN_PARALLEL; i++) {
+        for (int i = 0; i < config.getWriteConcc(); i++) {
             summaryStats.setConsumedRUs(statistics[i].getConsumedRUs() + summaryStats.getConsumedRUs());
             summaryStats.getElapsedTimeInMs().addAll(statistics[i].getElapsedTimeInMs());
         }
 
         if(drillDownOnSummary) {
-            for (int i = 0; i < Configuration.WRITE_TASKS_IN_PARALLEL; i++) {
+            for (int i = 0; i < config.getWriteConcc(); i++) {
                 log.info("Task with id: {} Stats: {}", i, statistics[i]);
             }
         }
@@ -213,7 +213,7 @@ public class Program {
         return personObjectCache;
     }
 
-    public static void runQueryByPrimaryKey(DocumentClient client, ArrayList<Person> personCache, boolean drillDownOnSummary) {
+    public static void runQueryByPrimaryKey(DocumentClient client, Config config, ArrayList<Person> personCache, boolean drillDownOnSummary) {
         log.info("Initializing QueryByPrimaryKey benchmarks");
 
         Database database = createDatabaseIfNotExists(client);
@@ -221,7 +221,7 @@ public class Program {
         DocumentCollection documentCollection = createPartitionedCollectionIfNotExists(client, database);
         log.info("Initializing collection with rid {}", documentCollection.getSelfLink());
 
-        ExecutorService readExecutors = Executors.newFixedThreadPool(Configuration.READ_TASKS_IN_PARALLEL,
+        ExecutorService readExecutors = Executors.newFixedThreadPool(config.getReadConcc(),
                 new ThreadFactory() {
                     int i=0;
                     public Thread newThread(Runnable r) {
@@ -231,13 +231,13 @@ public class Program {
                     }
                 });
 
-        Statistics[] statistics = new Statistics[Configuration.READ_TASKS_IN_PARALLEL];
+        Statistics[] statistics = new Statistics[config.getReadConcc()];
         for(int i = 0; i < statistics.length; i++)
             statistics[i] = new Statistics();
 
-        for (int i = 0; i < Configuration.READ_TASKS_IN_PARALLEL; i++) {
-            readExecutors.submit(new DocumentReadByPrimaryKey(client, documentCollection, i,
-                    Configuration.READ_PER_TASK, statistics[i], personCache));
+        for (int i = 0; i < config.getReadConcc(); i++) {
+            readExecutors.submit(new DocumentReadByPrimaryKey(client,documentCollection, i,
+                    config.getReadRequestSize(), statistics[i], personCache));
         }
 
         readExecutors.shutdown();
@@ -250,13 +250,13 @@ public class Program {
 
         Statistics summaryStats = new Statistics();
         summaryStats.setDELIMITER("\n");
-        for (int i = 0; i < Configuration.READ_TASKS_IN_PARALLEL; i++) {
+        for (int i = 0; i < config.getReadConcc(); i++) {
             summaryStats.setConsumedRUs(statistics[i].getConsumedRUs() + summaryStats.getConsumedRUs());
             summaryStats.getElapsedTimeInMs().addAll(statistics[i].getElapsedTimeInMs());
         }
 
         if(drillDownOnSummary) {
-            for (int i = 0; i < Configuration.READ_TASKS_IN_PARALLEL; i++) {
+            for (int i = 0; i < config.getReadConcc(); i++) {
                 log.info("Task with id: {} Stats: {}", i, statistics[i]);
             }
         }
@@ -264,7 +264,7 @@ public class Program {
         log.info("Read by PK Summary stats: \n{}", summaryStats);
     }
 
-    public static void runQueryBySecondayKey(DocumentClient client, ArrayList<Person> personCache, boolean drillDownOnSummary) {
+    public static void runQueryBySecondayKey(DocumentClient client, Config config, ArrayList<Person> personCache, boolean drillDownOnSummary) {
         log.info("Initializing QueryBySecondayKey benchmarks");
 
         Database database = createDatabaseIfNotExists(client);
@@ -272,23 +272,25 @@ public class Program {
         DocumentCollection documentCollection = createPartitionedCollectionIfNotExists(client, database);
         log.info("Initializing collection with rid {}", documentCollection.getSelfLink());
 
-        ExecutorService readExecutors = Executors.newFixedThreadPool(Configuration.READ_TASKS_IN_PARALLEL,
+        boolean crossPartition = config.isCrossPartition();
+        ExecutorService readExecutors = Executors.newFixedThreadPool(config.getReadIndexConcc(),
                 new ThreadFactory() {
                     int i=0;
                     public Thread newThread(Runnable r) {
-                        Thread th = new Thread(r, "cosmos-read-sk-"+(i++));
+                        Thread th = new Thread(r, "cosmos-read-index-sk-"+(i++));
                         th.setDaemon(true);
                         return th;
                     }
                 });
 
-        Statistics[] statistics = new Statistics[Configuration.READ_TASKS_IN_PARALLEL];
+        Statistics[] statistics = new Statistics[config.getReadIndexConcc()];
         for(int i = 0; i < statistics.length; i++)
             statistics[i] = new Statistics();
 
-        for (int i = 0; i < Configuration.READ_TASKS_IN_PARALLEL; i++) {
-            readExecutors.submit(new DocumentReadBySecondayKey(client, documentCollection, i,
-                    Configuration.READ_PER_TASK, statistics[i], personCache));
+        for (int i = 0; i < config.getReadIndexConcc(); i++) {
+            readExecutors.submit(new DocumentReadBySecondayKey(client, documentCollection,
+                    crossPartition, i,
+                    config.getReadIndexRequestSize(), statistics[i], personCache));
         }
 
         readExecutors.shutdown();
@@ -301,13 +303,13 @@ public class Program {
 
         Statistics summaryStats = new Statistics();
         summaryStats.setDELIMITER("\n");
-        for (int i = 0; i < Configuration.READ_TASKS_IN_PARALLEL; i++) {
+        for (int i = 0; i < config.getReadIndexConcc(); i++) {
             summaryStats.setConsumedRUs(statistics[i].getConsumedRUs() + summaryStats.getConsumedRUs());
             summaryStats.getElapsedTimeInMs().addAll(statistics[i].getElapsedTimeInMs());
         }
 
         if(drillDownOnSummary) {
-            for (int i = 0; i < Configuration.READ_TASKS_IN_PARALLEL; i++) {
+            for (int i = 0; i < config.getReadIndexConcc(); i++) {
                 log.info("Task with id: {} Stats: {}", i, statistics[i]);
             }
         }
@@ -342,7 +344,7 @@ public class Program {
         feedExecutors.submit(new ChangeFeedObserver(client, "", documentCollection, docs));
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         // do a dirty setup for the logger
         org.apache.log4j.BasicConfigurator.configure();
         org.apache.log4j.LogManager.getRootLogger().setLevel(Level.INFO);
@@ -357,7 +359,10 @@ public class Program {
             }
         });
         */
-        DocumentClient client = createWriteClient(ConnectionMode.DirectHttps);
+        
+        Config config = new Config(args[0]);
+        Profileable.startReporter(args[1]);
+        DocumentClient client = createWriteClient(ConnectionMode.Gateway);
 
 
         if(Configuration.DO_CLEANUP) //start with a clean slate
@@ -368,19 +373,20 @@ public class Program {
 
         //runChangeFeedObserver(client, feedExecutors);
 
-        ObjectCache<Person> insertedDocs = Program.runInsertBenchmark(client, false);
+        ObjectCache<Person> insertedDocs = Program.runInsertBenchmark(client,config, false);
         ArrayList<Person> personArrayList = new ArrayList<>();
         for(Person p : insertedDocs.getCache())
             personArrayList.add(p);
 
-        Program.runQueryByPrimaryKey(client, personArrayList, true);
-        Program.runQueryBySecondayKey(client, personArrayList, true);
-        Program.runUpdate(client, personArrayList);
+        Program.runQueryByPrimaryKey(client,config, personArrayList, true);
+        Program.runQueryBySecondayKey(client,config, personArrayList, true);
+//        Program.runUpdate(client, personArrayList);
 
         /*try {
             feedExecutors.awaitTermination(1, TimeUnit.HOURS);
         } catch (Exception ex) {
             log.error("Stopped feed ", ex);
         }*/
+        Profileable.stopReporter();
     }
 }

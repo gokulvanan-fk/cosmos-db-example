@@ -13,19 +13,37 @@ import java.util.Random;
  * Created by arun.khetarpal on 20/12/17.
  */
 @Slf4j
-@AllArgsConstructor
-public class DocumentReadBySecondayKey implements Runnable {
+public class DocumentReadBySecondayKey extends Profileable {
     private DocumentClient client;
     private DocumentCollection documentCollection;
+    private boolean crossPartition;
     private Integer taskId;
     private Integer countOfDocs;
     private Statistics stats;
     private ArrayList<Person> personCache;
 
+    
+    public DocumentReadBySecondayKey(DocumentClient client,
+            DocumentCollection collections,
+            boolean crossPartition,
+            Integer taskId,
+            Integer countOfDocs,
+            Statistics stats,
+            ArrayList<Person> personObectCache) {
+        super("DocumentReadBySecondayKey");
+        this.client = client;
+        this.documentCollection = collections;
+        this.crossPartition = crossPartition;
+        this.taskId = taskId;
+        this.countOfDocs = countOfDocs;
+        this.stats = stats;
+        this.personCache = personObectCache;
+    }
+    
     public void run() {
         Asserts.check(client!=null && documentCollection!=null,
                 "DocumentClient or DocumentCollection");
-
+        
         DocumentClient client = this.client;
 
         if(Configuration.READ_USE_NEW_CLIENTS_IN_TASK) {
@@ -44,12 +62,17 @@ public class DocumentReadBySecondayKey implements Runnable {
                 long tic = System.currentTimeMillis();
 
                 FeedOptions options = new FeedOptions();
-                options.setPartitionKey(new PartitionKey(person.getGender()));
-
+                if(crossPartition){
+                    options.setEnableCrossPartitionQuery(true);
+                }else{
+                    options.setPartitionKey(new PartitionKey(person.getGender())); 
+                }
+              
+                start();
                 FeedResponse<Document> queryDocResponse = client.queryDocuments(documentCollection.getSelfLink(),
                         String.format("SELECT * FROM c WHERE c.favoriteNumber=%d", person.getFavoriteNumber()),
                         options);
-
+                end();
                 long tock = System.currentTimeMillis();
                 stats.getElapsedTimeInMs().add((double) tock-tic);
 
@@ -72,6 +95,7 @@ public class DocumentReadBySecondayKey implements Runnable {
                 }
                 ruConsumed += queryDocResponse.getRequestCharge();
             } catch (Exception dce) {
+                error();
                 log.error("[{}]Failed to query document ", taskId, dce);
                 throw new RuntimeException("Failed to query document ");
             }

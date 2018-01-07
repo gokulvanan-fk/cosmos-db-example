@@ -19,8 +19,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * get by seconday key
  */
 @Slf4j
-@AllArgsConstructor
-public class DocumentInsertWorker implements Runnable {
+public class DocumentInsertWorker extends Profileable {
     private DocumentClient client;
     private DocumentCollection documentCollection;
     private Integer taskId;
@@ -29,6 +28,20 @@ public class DocumentInsertWorker implements Runnable {
     private ObjectCache<Person> personObjectCache;
 
     private static Gson gson = new Gson();
+    public DocumentInsertWorker(DocumentClient client,
+            DocumentCollection collections,
+            Integer taskId,
+            Integer countOfDocs,
+            Statistics stats,
+            ObjectCache<Person> personObectCache) {
+        super("DocumentInsertWorker");
+        this.client = client;
+        this.documentCollection = collections;
+        this.taskId = taskId;
+        this.countOfDocs = countOfDocs;
+        this.stats = stats;
+        this.personObjectCache = personObectCache;
+    }
 
     public void run() {
         Asserts.check(client!=null && documentCollection!=null,
@@ -53,10 +66,11 @@ public class DocumentInsertWorker implements Runnable {
                 Document doc = new Document(personJson);
 
                 long tic = System.currentTimeMillis();
+                start();
                 ResourceResponse<Document> createDocResponse =
                         client.createDocument(documentCollection.getSelfLink(), doc,
                                 null, false);
-
+                end();
                 long tock = System.currentTimeMillis();
                 stats.getElapsedTimeInMs().add((double) tock-tic);
 
@@ -67,6 +81,7 @@ public class DocumentInsertWorker implements Runnable {
                 }
                 ruConsumed += createDocResponse.getRequestCharge();
             } catch (DocumentClientException dce) {
+                error();
                 log.error("[{}-{}]Failed to insert document ", dce.getActivityId(), taskId, dce);
                 throw new RuntimeException("Failed to insert document ");
             }
@@ -74,4 +89,6 @@ public class DocumentInsertWorker implements Runnable {
 
         stats.setConsumedRUs(ruConsumed);
     }
+    
+    
 }
