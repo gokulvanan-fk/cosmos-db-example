@@ -16,6 +16,7 @@ public class Person {
     private String CreditCard;
     private Educator educator;
     private Integer favoriteNumber;
+    public String blob;
 
     @Getter
     @Setter

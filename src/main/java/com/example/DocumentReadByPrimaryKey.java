@@ -9,14 +9,29 @@ import java.util.ArrayList;
 import java.util.Random;
 
 @Slf4j
-@AllArgsConstructor
-public class DocumentReadByPrimaryKey implements Runnable {
+public class DocumentReadByPrimaryKey extends Profileable {
     private DocumentClient client;
     private DocumentCollection documentCollection;
     private Integer taskId;
     private Integer countOfDocs;
     private Statistics stats;
     private ArrayList<Person> personCache;
+
+    
+    public DocumentReadByPrimaryKey(DocumentClient client,
+            DocumentCollection collections,
+            Integer taskId,
+            Integer countOfDocs,
+            Statistics stats,
+            ArrayList<Person> personObectCache) {
+        super("DocumentReadByPrimaryKey");
+        this.client = client;
+        this.documentCollection = collections;
+        this.taskId = taskId;
+        this.countOfDocs = countOfDocs;
+        this.stats = stats;
+        this.personCache = personObectCache;
+    }
 
     public void run() {
         Asserts.check(client!=null && documentCollection!=null,
@@ -41,11 +56,11 @@ public class DocumentReadByPrimaryKey implements Runnable {
 
                 FeedOptions options = new FeedOptions();
                 options.setPartitionKey(new PartitionKey(person.getGender()));
-
+                start();
                 FeedResponse<Document> queryDocResponse = client.queryDocuments(documentCollection.getSelfLink(),
                         String.format("SELECT * FROM c WHERE c.id='%s'", person.getId(), person.getGender()),
                         options);
-
+                end();
                 long tock = System.currentTimeMillis();
                 stats.getElapsedTimeInMs().add((double) tock-tic);
 
@@ -56,6 +71,7 @@ public class DocumentReadByPrimaryKey implements Runnable {
                 }
                 ruConsumed += queryDocResponse.getRequestCharge();
             } catch (Exception dce) {
+                error();
                 log.error("[{}]Failed to query document ", taskId, dce);
                 throw new RuntimeException("Failed to query document ");
             }
