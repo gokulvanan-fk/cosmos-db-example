@@ -65,9 +65,11 @@ public class DocumentReadBySecondayKey extends Profileable {
                 if(crossPartition){
                     options.setEnableCrossPartitionQuery(true);
                 }else{
-                    options.setPartitionKey(new PartitionKey(person.getGender())); 
+                    options.setPartitionKey(new PartitionKey(person.getId()));
                 }
-              
+
+                options.setMaxDegreeOfParallelism(1000);
+
                 start();
                 FeedResponse<Document> queryDocResponse = client.queryDocuments(documentCollection.getSelfLink(),
                         String.format("SELECT * FROM c WHERE c.favoriteNumber=%d", person.getFavoriteNumber()),

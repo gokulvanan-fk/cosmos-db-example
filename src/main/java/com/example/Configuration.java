@@ -8,9 +8,10 @@ import java.util.List;
  */
 public interface Configuration {
     
-    String apiEndPoint ="https://flipkart.documents.azure.com:443/;AccountKey=7KvlpnedY1uPqwTU4mEPiwx9IXDiXAJFb9Vp1Vi1VAZq68sxapQdyUWzelXIsrHldq0FS6hl4IYlnI1HRfnnWQ==";
-    String key = "7KvlpnedY1uPqwTU4mEPiwx9IXDiXAJFb9Vp1Vi1VAZq68sxapQdyUWzelXIsrHldq0FS6hl4IYlnI1HRfnnWQ";
+    String apiEndPoint ="https://arkhetarp04.documents.azure.com:443/;AccountKey=fQToLFud0g1s9S7TnKdceiRIMeFmTm2jLm5N41Nxc2LmbMMAHP212DLHZJY9L0U6zIT3MyqM4Q4dYzzi0dPgfg==";
+    String key = "fQToLFud0g1s9S7TnKdceiRIMeFmTm2jLm5N41Nxc2LmbMMAHP212DLHZJY9L0U6zIT3MyqM4Q4dYzzi0dPgfg==";
     Boolean DO_CLEANUP = false;
+    Boolean USE_DIRECT_HTTPS = false;
     String MASTER_KEY = key;
     String READONLY_KEY = key;
     String SERVICE_URI = apiEndPoint;
@@ -19,11 +20,11 @@ public interface Configuration {
     String DATABASE_NAME = "testdb";
     String COLLECTION_NAME = "testcollection";
     Integer COLLECTION_THROUGHPUT = 1000000;
-    List<String> PARTITION_KEY_PATHS = Arrays.asList("/gender");
-    Integer WRITE_TASKS_IN_PARALLEL = 1;
-    Integer WRITE_INSERTS_PER_TASK =  10;
-    Integer READ_TASKS_IN_PARALLEL = 1;
-    Integer READ_PER_TASK =  10;
+    List<String> PARTITION_KEY_PATHS = Arrays.asList("/id");
+    Integer WRITE_TASKS_IN_PARALLEL = 100;
+    Integer WRITE_INSERTS_PER_TASK =  100000;
+    Integer READ_TASKS_IN_PARALLEL = 100;
+    Integer READ_PER_TASK =  100000;
     Integer READ_INDEX_TASKS_IN_PARALLEL = 1;
     Integer READ_INDEX_PER_TASK =  10;
     Boolean DISABLE_AUTOMATIC_INDEXING = true;

@@ -55,10 +55,10 @@ public class DocumentReadByPrimaryKey extends Profileable {
                 long tic = System.currentTimeMillis();
 
                 FeedOptions options = new FeedOptions();
-                options.setPartitionKey(new PartitionKey(person.getGender()));
+                options.setPartitionKey(new PartitionKey(person.getId()));
                 start();
                 FeedResponse<Document> queryDocResponse = client.queryDocuments(documentCollection.getSelfLink(),
-                        String.format("SELECT * FROM c WHERE c.id='%s'", person.getId(), person.getGender()),
+                        String.format("SELECT * FROM c WHERE c.id='%s'", person.getId()),
                         options);
                 end();
                 long tock = System.currentTimeMillis();
