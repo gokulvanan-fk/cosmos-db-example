@@ -5,6 +5,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
 
+import com.microsoft.azure.documentdb.ConnectionMode;
+import com.microsoft.azure.documentdb.ConnectionPolicy;
 import org.apache.commons.lang3.StringUtils;
 
 public class Config implements Configuration{
@@ -53,5 +55,11 @@ public class Config implements Configuration{
     public boolean isCrossPartition() {
         String val = props.getProperty("CROSS_PARTITION");
         return val != null && "true".equals(StringUtils.trim(val));
+    }
+
+    public ConnectionMode getPolicy() {
+        String val = props.getProperty("USE_DIRECT_HTTPS");
+        return val != null && "true".equals(StringUtils.trim(val)) ?
+                ConnectionMode.DirectHttps : ConnectionMode.Gateway;
     }
 }

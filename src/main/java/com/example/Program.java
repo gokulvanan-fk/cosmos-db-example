@@ -362,7 +362,7 @@ public class Program {
         
         Config config = new Config(args[0]);
         Profileable.startReporter(args[1]);
-        DocumentClient client = createWriteClient(ConnectionMode.Gateway);
+        DocumentClient client = createWriteClient(config.getPolicy());
 
 
         if(Configuration.DO_CLEANUP) //start with a clean slate
